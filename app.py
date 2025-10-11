@@ -20,12 +20,20 @@ if mode == "Ask Question":
 
     if uploaded_files:
         with st.spinner("Indexing your uploaded papers..."):
+            # Clear temp_data and vectorstore to isolate current upload
+            import shutil
+            if os.path.exists("temp_data"):
+                shutil.rmtree("temp_data")
             os.makedirs("temp_data", exist_ok=True)
+
             for f in uploaded_files:
                 with open(os.path.join("temp_data", f.name), "wb") as fp:
                     fp.write(f.read())
+
+            # Build a fresh FAISS index from current upload only
             create_or_load_vectorstore("temp_data")
-        st.success("✅ Papers indexed successfully!")
+        st.success(f"✅ Indexed {len(uploaded_files)} paper(s) successfully!")
+
 
     query = st.text_input("Ask your question (e.g., 'What is the paper's main contribution?')")
     if st.button("Search"):
