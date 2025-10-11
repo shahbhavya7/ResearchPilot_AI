@@ -6,7 +6,7 @@ import os
 
 st.set_page_config(page_title="📚 PaperPilot", page_icon="🧠", layout="wide")
 
-st.title("📚 PaperPilot ")
+st.title("📚 Research Pilot ")
 
 # --- Sidebar ---
 mode = st.sidebar.radio("Choose mode:", ["Ask Question", "Compare Two Papers"])
@@ -14,40 +14,126 @@ st.sidebar.markdown("---")
 st.sidebar.info("💡 You can upload PDFs directly — no need to store them in the data folder.")
 
 # --- Mode 1: Research Question ---
+from question_suggester import generate_smart_questions
+from pdf_loader import extract_text_from_pdf
+import os, shutil, streamlit as st
+from rag_pipeline import create_or_load_vectorstore, get_qa_chain
+
 if mode == "Ask Question":
-    st.header("🧠 Ask a research question")
-    uploaded_files = st.file_uploader("Upload one or more PDFs", type=["pdf"], accept_multiple_files=True)
+    st.header("🧠 Ask a Research Question")
+    uploaded_files = st.file_uploader(
+        "Upload one or more PDFs", type=["pdf"], accept_multiple_files=True
+    )
 
+    # Initialize session state for questions
+    if "suggested_questions" not in st.session_state:
+        st.session_state["suggested_questions"] = []
+    if "query_input" not in st.session_state:
+        st.session_state["query_input"] = ""
+
+    # === Upload & Index PDFs ===
     if uploaded_files:
-        with st.spinner("Indexing your uploaded papers..."):
-            # Clear temp_data and vectorstore to isolate current upload
-            import shutil
-            if os.path.exists("temp_data"):
-                shutil.rmtree("temp_data")
-            os.makedirs("temp_data", exist_ok=True)
+        with st.spinner("📚 Indexing and analyzing your uploaded papers..."):
+            # Only regenerate questions if new PDFs uploaded
+            uploaded_names = [f.name for f in uploaded_files]
+            if st.session_state.get("last_uploaded") != uploaded_names:
+                if os.path.exists("temp_data"):
+                    shutil.rmtree("temp_data")
+                os.makedirs("temp_data", exist_ok=True)
 
-            for f in uploaded_files:
-                with open(os.path.join("temp_data", f.name), "wb") as fp:
-                    fp.write(f.read())
+                combined_text = ""
+                for f in uploaded_files:
+                    path = os.path.join("temp_data", f.name)
+                    with open(path, "wb") as fp:
+                        fp.write(f.read())
+                    f.seek(0)
+                    text = extract_text_from_pdf(f.read())
+                    combined_text += text[:3000]
 
-            # Build a fresh FAISS index from current upload only
-            create_or_load_vectorstore("temp_data")
-        st.success(f"✅ Indexed {len(uploaded_files)} paper(s) successfully!")
+                create_or_load_vectorstore("temp_data")
+
+                with st.spinner("🤖 Generating smart questions..."):
+                    st.session_state["suggested_questions"] = generate_smart_questions(
+                        combined_text, n=5
+                    )
+                st.session_state["last_uploaded"] = uploaded_names
+
+        st.success(f"✅ Indexed {len(uploaded_files)} paper(s)!")
+
+    # === Smart Question Suggestions ===
+    if st.session_state["suggested_questions"]:
+        st.markdown("#### 💡 Smart Question Suggestions:")
+        st.markdown("""
+        <style>
+        /* --- Elegant Streamlit-Themed Buttons --- */
+        div[data-testid="stButton"] button {
+            background-color: #1b1f24;  /* near the Streamlit dark background */
+            color: #e5e7eb;             /* soft gray-white text */
+            border: 1px solid #2d3138;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+            width: 100%;
+            text-align: left;
+            transition: all 0.15s ease-in-out;
+        }
+
+        /* Hover: gentle brightness + lift */
+        div[data-testid="stButton"] button:hover {
+            background-color: #2a2f36;
+            color: #f9fafb;
+            border-color: #3c4047;
+            transform: translateY(-1px);
+            box-shadow: 0 0 6px rgba(255, 255, 255, 0.06);
+        }
+
+        /* Active / Selected button */
+        div[data-testid="stButton"] button:focus {
+            outline: none;
+            background-color: #374151;
+            border-color: #475569;
+            box-shadow: inset 0 0 0 1px #4b5563;
+        }
+
+        /* Compact spacing for stacked layout */
+        section.main div.block-container {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
 
-    query = st.text_input("Ask your question (e.g., 'What is the paper's main contribution?')")
+
+        # uniform list layout
+        for i, q in enumerate(st.session_state["suggested_questions"]):
+            if st.button(q, key=f"qbtn_{i}"):
+                st.session_state["query_input"] = q
+
+    # === Query Input & Answer ===
+    query = st.text_input(
+        "Ask your question (or select one above):",
+        key="query_input"
+    )
+
     if st.button("Search"):
         if not os.path.exists("vectorstore"):
             st.warning("Please upload and index PDFs first!")
+        elif not query.strip():
+            st.warning("Please enter or select a question.")
         else:
             with st.spinner("Thinking with Gemini..."):
                 chain = get_qa_chain()
                 response = chain(query)
+
             st.markdown("### 🧠 Answer:")
             st.markdown(
                 f"<div style='background-color:#111827;padding:15px;border-radius:10px;color:#f1f5f9;'>{response}</div>",
                 unsafe_allow_html=True
             )
+
 
 # --- Mode 2: Compare Two Papers ---
 elif mode == "Compare Two Papers":
