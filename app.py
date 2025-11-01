@@ -9,7 +9,7 @@ st.set_page_config(page_title="📚 PaperPilot", page_icon="🧠", layout="wide"
 st.title("📚 Research Pilot ")
 
 # --- Sidebar ---
-mode = st.sidebar.radio("Choose mode:", ["Ask Question", "Compare Two Papers"])
+mode = st.sidebar.radio("Choose mode:", ["Ask Question", "Compare Two Papers","Literature Review Generator"])
 st.sidebar.markdown("---")
 st.sidebar.info("💡 You can upload PDFs directly — no need to store them in the data folder.")
 
@@ -196,3 +196,42 @@ If any information is missing, mark it as "Not mentioned".
                     st.subheader(file2.name)
                     st.text_area("Paper 2 - Methods", methods2, height=200)
 
+# --- Literature Review Generator ---
+elif mode == "Literature Review Generator":
+    st.header("✍️ Auto Literature Review Generator")
+    st.caption("Upload multiple papers to generate a cohesive literature review paragraph.")
+
+    uploads = st.file_uploader("Upload 2 or more PDFs", type=["pdf"], accept_multiple_files=True)
+
+    if uploads and st.button("Generate Literature Review"):
+        from pdf_loader import extract_text_from_pdf
+        from literature_review import generate_literature_review
+
+        with st.spinner("🧠 Reading papers and synthesizing review..."):
+            combined_text = ""
+            for f in uploads:
+                text = extract_text_from_pdf(f.read())
+                # only grab important parts to keep prompt efficient
+                combined_text += f"\n\n=== {f.name} ===\n{text[:2000]}"
+
+            review = generate_literature_review(combined_text)
+
+        st.success("✅ Literature Review Generated!")
+        st.markdown("### 🧩 Gemini’s Literature Review")
+        st.markdown(
+            f"<div style='background-color:#111827;padding:18px;border-radius:12px;color:#f1f5f9;'>{review}</div>",
+            unsafe_allow_html=True
+        )
+
+        # Optional download button
+        st.download_button(
+            label="📄 Download Review as TXT",
+            data=review,
+            file_name="literature_review.txt",
+            mime="text/plain"
+        )
+
+        with st.expander("📚 Source Previews"):
+            for f in uploads:
+                f.seek(0)
+                st.text_area(f.name, extract_text_from_pdf(f.read())[:1500], height=150)
