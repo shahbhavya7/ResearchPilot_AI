@@ -9,7 +9,7 @@ st.set_page_config(page_title="📚 PaperPilot", page_icon="🧠", layout="wide"
 st.title("📚 Research Pilot ")
 
 # --- Sidebar ---
-mode = st.sidebar.radio("Choose mode:", ["Ask Question", "Compare Two Papers","Literature Review Generator"])
+mode = st.sidebar.radio("Choose mode:", ["Ask Question", "Compare Two Papers","Literature Review Generator","Dataset / Metric Extractor"])
 st.sidebar.markdown("---")
 st.sidebar.info("💡 You can upload PDFs directly — no need to store them in the data folder.")
 
@@ -235,3 +235,81 @@ elif mode == "Literature Review Generator":
             for f in uploads:
                 f.seek(0)
                 st.text_area(f.name, extract_text_from_pdf(f.read())[:1500], height=150)
+
+# --- Dataset / Metric Extractor (Gemini) ---
+elif mode == "Dataset / Metric Extractor":
+    st.header("📊 Research Pilot-Powered Dataset & Metric Extractor")
+    st.caption(
+        "Upload one or more research papers (PDFs) and let Research Pilot 2.5 Pro "
+        "automatically detect datasets and evaluation metrics — even if only implied."
+    )
+
+    # === File uploader ===
+    uploads = st.file_uploader(
+        "📂 Upload PDFs for Analysis",
+        type=["pdf"],
+        accept_multiple_files=True,
+        help="You can upload multiple papers together to get combined insights."
+    )
+
+    # === Action button ===
+    if uploads and st.button("🔍 Analyze with Research Pilot"):
+        from pdf_loader import extract_text_from_pdf
+        from dataset_metric_extractor import extract_datasets_and_metrics_with_gemini
+        import os
+
+        with st.spinner("🤖 Research Pilot is reading and analyzing your uploaded papers..."):
+            combined_results = ""
+            for f in uploads:
+                # Extract text from each uploaded paper
+                text = extract_text_from_pdf(f.read())
+
+                # Gemini-powered dataset + metric extraction
+                result = extract_datasets_and_metrics_with_gemini(text)
+
+                combined_results += f"\n\n## 📄 {f.name}\n{result}"
+
+        st.success("✅ Research Pilot successfully analyzed all uploaded papers!")
+
+        # === Display results ===
+        st.markdown("### 🧩 Combined Dataset & Metric Analysis")
+        st.markdown(
+            f"<div style='background-color:#111827;padding:18px;border-radius:12px;color:#f1f5f9;'>"
+            f"{combined_results}</div>",
+            unsafe_allow_html=True
+        )
+
+        # === Download button ===
+        st.download_button(
+            label="💾 Download Results as Markdown",
+            data=combined_results,
+            file_name="dataset_metric_analysis.md",
+            mime="text/markdown"
+        )
+
+        # === Optional consolidation summary ===
+        with st.spinner("📈 Summarizing dataset and metric trends across all papers..."):
+            import google.generativeai as genai
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            model = genai.GenerativeModel("gemini-2.5-pro")
+
+            summary_prompt = f"""
+            Combine the following per-paper tables into a unified summary.
+
+            Include:
+            - Top datasets and metrics (frequency & domain)
+            - Observed trends across papers
+            - 2–3 sentence insight summary
+
+            Per-paper details:
+            {combined_results}
+            """
+            consolidated = model.generate_content(summary_prompt).text
+
+        st.markdown("### 📈 Consolidated Summary Across Papers")
+        st.markdown(
+            f"<div style='background-color:#111827;padding:16px;border-radius:10px;color:#f1f5f9;'>"
+            f"{consolidated}</div>",
+            unsafe_allow_html=True
+        )
+
