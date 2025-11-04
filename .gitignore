@@ -1,2 +1,6 @@
 /data
 .env
+src/__pycache__
+vectorstore
+.vscode
+lib

@@ -2,12 +2,12 @@
 from langchain.embeddings import SentenceTransformerEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
-from gemini_wrapper import call_gemini
+from src.gemini_wrapper import call_gemini 
 from langchain.prompts import PromptTemplate
 import os
 
 def create_or_load_vectorstore(pdf_dir="data"):
-    from pdf_loader import extract_text_from_pdf, chunk_text
+    from src.pdf_loader import extract_text_from_pdf, chunk_text
     from langchain.embeddings import SentenceTransformerEmbeddings
     from langchain.vectorstores import FAISS
     import shutil, os

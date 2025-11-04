@@ -1,7 +1,7 @@
 import streamlit as st
-from rag_pipeline import get_qa_chain, create_or_load_vectorstore
-from pdf_loader import extract_text_from_pdf, extract_methods_section
-from gemini_wrapper import call_gemini
+from src.rag_pipeline import create_or_load_vectorstore, get_qa_chain
+from src.pdf_loader import extract_text_from_pdf, extract_methods_section
+from src.gemini_wrapper import call_gemini
 import os
 
 st.set_page_config(page_title="📚 PaperPilot", page_icon="🧠", layout="wide")
@@ -14,10 +14,10 @@ st.sidebar.markdown("---")
 st.sidebar.info("💡 You can upload PDFs directly — no need to store them in the data folder.")
 
 # --- Mode 1: Research Question ---
-from question_suggester import generate_smart_questions
-from pdf_loader import extract_text_from_pdf
+from src.question_suggester import generate_smart_questions
+from src.pdf_loader import extract_text_from_pdf
 import os, shutil, streamlit as st
-from rag_pipeline import create_or_load_vectorstore, get_qa_chain
+from src.rag_pipeline import create_or_load_vectorstore, get_qa_chain
 
 if mode == "Ask Question":
     st.header("🧠 Ask a Research Question")
@@ -124,7 +124,7 @@ if mode == "Ask Question":
         elif not query.strip():
             st.warning("Please enter or select a question.")
         else:
-            with st.spinner("Thinking with Gemini..."):
+            with st.spinner("Thinking..."):
                 chain = get_qa_chain()
                 response = chain(query)
 
@@ -204,8 +204,8 @@ elif mode == "Literature Review Generator":
     uploads = st.file_uploader("Upload 2 or more PDFs", type=["pdf"], accept_multiple_files=True)
 
     if uploads and st.button("Generate Literature Review"):
-        from pdf_loader import extract_text_from_pdf
-        from literature_review import generate_literature_review
+        from src.pdf_loader import extract_text_from_pdf
+        from src.literature_review import generate_literature_review
 
         with st.spinner("🧠 Reading papers and synthesizing review..."):
             combined_text = ""
@@ -217,7 +217,7 @@ elif mode == "Literature Review Generator":
             review = generate_literature_review(combined_text)
 
         st.success("✅ Literature Review Generated!")
-        st.markdown("### 🧩 Gemini’s Literature Review")
+        st.markdown("### 🧩 Literature Review")
         st.markdown(
             f"<div style='background-color:#111827;padding:18px;border-radius:12px;color:#f1f5f9;'>{review}</div>",
             unsafe_allow_html=True
@@ -238,7 +238,7 @@ elif mode == "Literature Review Generator":
 
 # --- Dataset / Metric Extractor (Gemini) ---
 elif mode == "Dataset / Metric Extractor":
-    st.header("📊 Research Pilot-Powered Dataset & Metric Extractor")
+    st.header("📊 Dataset & Metric Extractor")
     st.caption(
         "Upload one or more research papers (PDFs) and let Research Pilot 2.5 Pro "
         "automatically detect datasets and evaluation metrics — even if only implied."
@@ -254,8 +254,8 @@ elif mode == "Dataset / Metric Extractor":
 
     # === Action button ===
     if uploads and st.button("🔍 Analyze with Research Pilot"):
-        from pdf_loader import extract_text_from_pdf
-        from dataset_metric_extractor import extract_datasets_and_metrics_with_gemini
+        from src.pdf_loader import extract_text_from_pdf
+        from src.dataset_metric_extractor import extract_datasets_and_metrics_with_gemini
         import os
 
         with st.spinner("🤖 Research Pilot is reading and analyzing your uploaded papers..."):
