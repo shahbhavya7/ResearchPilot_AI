@@ -1,7 +1,7 @@
 # pdf_loader.py
 import fitz
 import re
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 def extract_text_from_pdf(pdf_path_or_bytes):
     """

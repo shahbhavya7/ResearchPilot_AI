@@ -4,3 +4,4 @@ src/__pycache__
 vectorstore
 .vscode
 lib
+temp_data

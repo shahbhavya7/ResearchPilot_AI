@@ -1,6 +1,10 @@
 streamlit 
 langchain 
+langchain-community
+langchain-text-splitters
 openai 
 faiss-cpu 
 sentence-transformers 
 PyMuPDF
+python-dotenv
+google-generativeai

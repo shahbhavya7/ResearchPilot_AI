@@ -138,14 +138,86 @@ if mode == "Ask Question":
 # --- Mode 2: Compare Two Papers ---
 elif mode == "Compare Two Papers":
     st.header("📑 Compare Methodology of Two Papers")
+    st.caption("Upload one paper for detailed analysis or two papers for comparison")
 
     col1, col2 = st.columns(2)
     with col1:
         file1 = st.file_uploader("Upload Paper 1", type=["pdf"], key="file1")
     with col2:
-        file2 = st.file_uploader("Upload Paper 2", type=["pdf"], key="file2")
+        file2 = st.file_uploader("Upload Paper 2 (Optional)", type=["pdf"], key="file2")
 
-    if file1 and file2:
+    # Handle single paper case
+    if file1 and not file2:
+        if st.button("Analyze Methodology"):
+            with st.spinner("Extracting and analyzing methodology in detail..."):
+                text1 = extract_text_from_pdf(file1.read())
+                methods1 = extract_methods_section(text1)
+
+                detail_prompt = f"""
+You are an expert research analyst. Provide a **comprehensive and detailed analysis** of the methodology section from this research paper.
+
+**Paper Methods:**
+{methods1}
+
+Please structure your analysis as a **detailed Markdown report** covering:
+
+## 🎯 Research Approach
+- Overall methodology paradigm (e.g., experimental, theoretical, empirical)
+- Research design and framework
+
+## 🔬 Algorithm / Model
+- Detailed description of algorithms, models, or techniques used
+- Technical specifications and parameters
+- Any novel contributions or modifications
+
+## 📊 Dataset & Data Collection
+- Dataset(s) used with specifics (size, source, characteristics)
+- Data collection methods and preprocessing steps
+- Feature engineering or transformation techniques
+
+## 🧪 Experimental Setup
+- Hardware/software environment
+- Implementation details
+- Training/testing procedures
+- Hyperparameters and configurations
+
+## 📈 Evaluation Metrics
+- All metrics used for evaluation
+- Why these metrics were chosen
+- Baseline comparisons
+
+## 💪 Strengths
+- What makes this methodology robust or innovative
+- Key advantages over prior work
+
+## ⚠️ Limitations
+- Acknowledged or apparent weaknesses
+- Potential biases or constraints
+- Scope limitations
+
+## 🔮 Reproducibility & Generalization
+- How reproducible is this approach
+- Generalization potential to other domains/datasets
+- Code/data availability mentioned
+
+If any section is not explicitly mentioned in the paper, note it as "Not explicitly mentioned" but provide reasonable inferences if possible.
+"""
+
+                response = call_gemini("Analyze research methodology", detail_prompt)
+
+                # --- Render Detailed Analysis ---
+                st.markdown("### 🔬 Detailed Methodology Analysis")
+                st.markdown(
+                    f"<div style='background-color:#111827;padding:18px;border-radius:12px;color:#f1f5f9;'>{response}</div>",
+                    unsafe_allow_html=True
+                )
+
+                with st.expander("📄 Raw Extracted Methods Section"):
+                    st.subheader(file1.name)
+                    st.text_area("Extracted Methods", methods1, height=300)
+
+    # Handle two paper comparison case
+    elif file1 and file2:
         if st.button("Compare Methods"):
             with st.spinner("Extracting and analyzing methods..."):
                 text1 = extract_text_from_pdf(file1.read())

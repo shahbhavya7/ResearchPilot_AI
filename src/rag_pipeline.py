@@ -1,18 +1,16 @@
 # rag_pipeline.py
-from langchain.embeddings import SentenceTransformerEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chains import RetrievalQA
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 from src.gemini_wrapper import call_gemini 
-from langchain.prompts import PromptTemplate
 import os
 
 def create_or_load_vectorstore(pdf_dir="data"):
     from src.pdf_loader import extract_text_from_pdf, chunk_text
-    from langchain.embeddings import SentenceTransformerEmbeddings
-    from langchain.vectorstores import FAISS
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_community.vectorstores import FAISS
     import shutil, os
 
-    embedder = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedder = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
     # ✅ Step 1: clear old vectorstore before creating new
     if os.path.exists("vectorstore"):
@@ -37,7 +35,7 @@ def create_or_load_vectorstore(pdf_dir="data"):
 
 
 def load_vectorstore():
-    embedder = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedder = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     return FAISS.load_local("vectorstore", embedder, allow_dangerous_deserialization=True)
 
 def get_qa_chain():
@@ -46,7 +44,7 @@ def get_qa_chain():
 
     def qa_function(question: str):
         # Retrieve top chunks
-        docs = retriever.get_relevant_documents(question)
+        docs = retriever.invoke(question)
         context = "\n\n".join([f"[{d.metadata['source']}]\n{d.page_content}" for d in docs])
         # Call Gemini model
         answer = call_gemini(question, context)
