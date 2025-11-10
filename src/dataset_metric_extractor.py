@@ -1,14 +1,16 @@
 # gemini_dataset_metric_extractor.py
 import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
 from dotenv import load_dotenv
 import os
+import time
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-def extract_datasets_and_metrics_with_gemini(paper_text: str) -> str:
+def extract_datasets_and_metrics_with_gemini(paper_text: str, max_retries=3) -> str:
     """
-    Uses Gemini 2.5 Pro to infer datasets and evaluation metrics mentioned in a paper.
+    Uses Gemini 2.5 Flash to infer datasets and evaluation metrics mentioned in a paper.
     Returns a structured Markdown report (tables).
     """
     if not paper_text or len(paper_text.strip()) < 200:
@@ -37,9 +39,24 @@ Paper text:
 Respond only with Markdown tables and brief headers — no extra commentary.
 """
 
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Error extracting datasets/metrics: {e}"
+    for attempt in range(max_retries):
+        try:
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            response = model.generate_content(prompt)
+            return response.text
+        except (google_exceptions.ResourceExhausted, google_exceptions.DeadlineExceeded) as e:
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)  # Exponential backoff
+                continue
+            else:
+                raise Exception(
+                    "⚠️ Gemini API is currently overloaded. Please try again in a few moments."
+                ) from e
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            else:
+                raise Exception(f"⚠️ Error extracting datasets/metrics: {str(e)}") from e
+    
+    raise Exception("⚠️ Failed to extract data after multiple retries.")
