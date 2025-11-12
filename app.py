@@ -3,6 +3,7 @@ from src.rag_pipeline import create_or_load_vectorstore, get_qa_chain
 from src.pdf_loader import extract_text_from_pdf, extract_methods_section
 from src.gemini_wrapper import call_gemini
 import os
+from datetime import datetime
 
 st.set_page_config(
     page_title="Research Pilot AI", 
@@ -423,6 +424,46 @@ st.markdown("""
         transform: translateX(5px);
         box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
     }
+    
+    /* Workspace Management Buttons */
+    [data-testid="stSidebar"] .stButton button {
+        font-size: 0.85rem !important;
+        padding: 0.6rem 1rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Expander Styling */
+    [data-testid="stExpander"] {
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+    }
+    
+    [data-testid="stExpander"] summary {
+        font-weight: 600;
+        color: #e2e8f0;
+        padding: 0.75rem 1rem;
+    }
+    
+    /* Column Layout Fixes */
+    [data-testid="column"] {
+        padding: 0 0.25rem !important;
+    }
+    
+    /* Sidebar Width Management */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    
+    /* Workspace Card Styling */
+    [data-testid="stSidebar"] .stMarkdown {
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -447,9 +488,160 @@ with st.sidebar:
     
     st.markdown("---")
     
-    st.markdown("### 💡 Quick Tips")
+    # === Workspace Management ===
+    st.markdown("### 💾 Workspace Manager")
+    
+    from src.workspace_manager import WorkspaceManager, collect_current_session_data, restore_session_data
+    
+    workspace_mgr = WorkspaceManager()
+    
+    # Initialize history states if not exists
+    if "qa_history" not in st.session_state:
+        st.session_state["qa_history"] = []
+    if "comparison_results" not in st.session_state:
+        st.session_state["comparison_results"] = []
+    if "literature_reviews" not in st.session_state:
+        st.session_state["literature_reviews"] = []
+    if "dataset_extractions" not in st.session_state:
+        st.session_state["dataset_extractions"] = []
+    
+    # Save Workspace Section
+    with st.expander("💾 Save Current Session", expanded=False):
+        st.info("💡 Each save creates a timestamped version so you never lose previous work!")
+        
+        workspace_name = st.text_input(
+            "Workspace Name",
+            placeholder="My Research Project",
+            key="workspace_name_input",
+            help="Multiple saves with the same name will be versioned with timestamps"
+        )
+        
+        if st.button("💾 Save Workspace", use_container_width=True):
+            if workspace_name.strip():
+                session_data = collect_current_session_data()
+                if workspace_mgr.save_workspace(workspace_name, session_data):
+                    st.success(f"✅ Workspace '{workspace_name}' saved!")
+                    st.rerun()
+            else:
+                st.warning("⚠️ Please enter a workspace name")
+    
+    # Load Workspace Section
+    with st.expander("� Load Saved Session", expanded=False):
+        workspaces = workspace_mgr.list_workspaces()
+        
+        if workspaces:
+            st.markdown(f"**{len(workspaces)} saved workspace(s)**")
+            
+            for idx, ws in enumerate(workspaces):
+                col1, col2, col3 = st.columns([3, 1, 1])
+                
+                with col1:
+                    # Format date
+                    try:
+                        date_str = datetime.fromisoformat(ws['created_at']).strftime("%b %d, %Y %I:%M %p")
+                    except:
+                        date_str = ws['created_at']
+                    
+                    st.markdown(f"**{ws['name']}**")
+                    st.caption(f"📅 {date_str}")
+                
+                with col2:
+                    if st.button("📂", key=f"load_{idx}", help="Load"):
+                        data = workspace_mgr.load_workspace(ws['filename'])
+                        if data:
+                            restore_session_data(data)
+                            st.success(f"✅ Loaded '{ws['name']}'")
+                            st.rerun()
+                
+                with col3:
+                    if st.button("🗑️", key=f"delete_{idx}", help="Delete"):
+                        if workspace_mgr.delete_workspace(ws['filename']):
+                            st.success("✅ Deleted!")
+                            st.rerun()
+                
+                # Download button
+                export_data = workspace_mgr.export_workspace(ws['filename'])
+                if export_data:
+                    st.download_button(
+                        label="⬇️ Export",
+                        data=export_data,
+                        file_name=ws['filename'],
+                        mime="application/json",
+                        key=f"export_{idx}",
+                        use_container_width=True
+                    )
+                
+                st.markdown("---")
+        else:
+            st.info("No saved workspaces yet")
+    
+    # Import Workspace Section
+    with st.expander("📥 Import Workspace", expanded=False):
+        imported_file = st.file_uploader(
+            "Upload workspace JSON",
+            type=["json"],
+            key="import_workspace"
+        )
+        
+        if imported_file and st.button("📥 Import", use_container_width=True):
+            if workspace_mgr.import_workspace(imported_file):
+                st.success("✅ Workspace imported!")
+                st.rerun()
+    
+    # Clear Storage Section
+    with st.expander("🗑️ Clear Storage", expanded=False):
+        st.warning("⚠️ This will delete ALL saved workspaces permanently!")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🗑️ Clear All", use_container_width=True, type="primary"):
+                if 'confirm_clear_all' not in st.session_state:
+                    st.session_state.confirm_clear_all = True
+                    st.rerun()
+        
+        with col2:
+            if st.button("🔄 Clear Session", use_container_width=True):
+                # Clear all session state data
+                for key in ['uploaded_pdfs', 'qa_history', 'comparison_results', 
+                           'literature_reviews', 'dataset_extractions']:
+                    if key in st.session_state:
+                        st.session_state[key] = [] if key == 'uploaded_pdfs' else []
+                
+                # Clear temp_data and vectorstore
+                if os.path.exists("temp_data"):
+                    shutil.rmtree("temp_data")
+                    os.makedirs("temp_data")
+                if os.path.exists("vectorstore"):
+                    shutil.rmtree("vectorstore")
+                    os.makedirs("vectorstore")
+                
+                st.success("✅ Current session cleared!")
+                st.rerun()
+        
+        # Confirmation dialog for clear all
+        if st.session_state.get('confirm_clear_all', False):
+            st.error("🚨 Are you absolutely sure? This cannot be undone!")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Confirm", use_container_width=True):
+                    if workspace_mgr.clear_all_workspaces():
+                        st.session_state.confirm_clear_all = False
+                        st.success("✅ All workspaces deleted!")
+                        st.rerun()
+            
+            with col2:
+                if st.button("❌ Cancel", use_container_width=True):
+                    st.session_state.confirm_clear_all = False
+                    st.rerun()
+    
+    st.markdown("---")
+    
+    st.markdown("### �💡 Quick Tips")
     st.info("📄 Upload PDFs directly — no file storage needed!")
     st.info("🤖 Powered by Gemini AI for intelligent analysis")
+    st.info("💾 Save your work and continue later!")
     
     st.markdown("---")
     
@@ -459,6 +651,7 @@ with st.sidebar:
     - 📑 Paper Comparison  
     - ✍️ Literature Review
     - 📊 Dataset Extraction
+    - 💾 Session Management
     """)
 
 # --- Mode 1: Research Question ---
@@ -549,6 +742,14 @@ if mode == "Ask Question":
                     chain = get_qa_chain()
                     response = chain(query)
 
+                # Save to history
+                st.session_state["qa_history"].append({
+                    "question": query,
+                    "answer": response,
+                    "timestamp": datetime.now().isoformat(),
+                    "papers": st.session_state.get("last_uploaded", [])
+                })
+
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("### 🎯 Answer")
                 st.markdown('<div class="answer-card">', unsafe_allow_html=True)
@@ -557,7 +758,16 @@ if mode == "Ask Question":
             except Exception as e:
                 st.error(str(e))
                 st.info("💡 Tip: If the API is overloaded, please wait a few moments and try again.")
-
+    
+    # Display Q&A History
+    if st.session_state.get("qa_history"):
+        with st.expander(f"📜 View Q&A History ({len(st.session_state['qa_history'])} questions)", expanded=False):
+            for idx, item in enumerate(reversed(st.session_state["qa_history"])):
+                st.markdown(f"**Q{len(st.session_state['qa_history']) - idx}:** {item['question']}")
+                st.markdown(f"*Papers: {', '.join(item.get('papers', []))}*")
+                with st.container():
+                    st.markdown(item['answer'][:200] + "..." if len(item['answer']) > 200 else item['answer'])
+                st.markdown("---")
 
 
 # --- Mode 2: Compare Two Papers ---
@@ -565,6 +775,24 @@ elif mode == "Compare Two Papers":
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h3 class='section-header'>📑 Methodology Analysis & Comparison</h3>", unsafe_allow_html=True)
     st.markdown("<p class='caption'>Upload one paper for detailed analysis or two papers for side-by-side comparison</p>", unsafe_allow_html=True)
+    
+    # Display previous comparison results from loaded workspace
+    if st.session_state.get("comparison_results"):
+        with st.expander("📊 Previous Comparisons", expanded=False):
+            for idx, comp_data in enumerate(reversed(st.session_state["comparison_results"])):
+                st.markdown(f"### Comparison #{len(st.session_state['comparison_results']) - idx}")
+                st.caption(f"📅 {datetime.fromisoformat(comp_data['timestamp']).strftime('%b %d, %Y %I:%M %p')}")
+                
+                # Handle different comparison types
+                if comp_data.get('type') == 'single_paper_analysis':
+                    st.caption(f"📄 Paper: {comp_data['paper']}")
+                elif comp_data.get('type') == 'two_paper_comparison':
+                    st.caption(f"📄 Papers: {comp_data['paper1']} vs {comp_data['paper2']}")
+                
+                st.markdown('<div class="answer-card">', unsafe_allow_html=True)
+                st.markdown(comp_data['result'])
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("---")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -636,6 +864,14 @@ If any section is not explicitly mentioned in the paper, note it as "Not explici
                 try:
                     response = call_gemini("Analyze research methodology", detail_prompt)
                     
+                    # Save to history
+                    st.session_state["comparison_results"].append({
+                        "type": "single_paper_analysis",
+                        "paper": file1.name,
+                        "result": response,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    
                     # --- Render Detailed Analysis ---
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown("### 🔬 Detailed Methodology Analysis")
@@ -694,6 +930,15 @@ If any information is missing, mark it as "Not mentioned".
                 try:
                     response = call_gemini("Compare research methodologies", compare_prompt)
 
+                    # Save to history
+                    st.session_state["comparison_results"].append({
+                        "type": "two_paper_comparison",
+                        "paper1": file1.name,
+                        "paper2": file2.name,
+                        "result": response,
+                        "timestamp": datetime.now().isoformat()
+                    })
+
                     # --- Render Table Output ---
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown("### 🧩 Methodology Comparison Table")
@@ -722,6 +967,26 @@ elif mode == "Literature Review Generator":
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h3 class='section-header'>✍️ Auto Literature Review Generator</h3>", unsafe_allow_html=True)
     st.markdown("<p class='caption'>Upload multiple papers to generate a cohesive, academic literature review</p>", unsafe_allow_html=True)
+    
+    # Display previous literature reviews from loaded workspace
+    if st.session_state.get("literature_reviews"):
+        with st.expander("📚 Previous Literature Reviews", expanded=False):
+            for idx, review_data in enumerate(reversed(st.session_state["literature_reviews"])):
+                st.markdown(f"### Review #{len(st.session_state['literature_reviews']) - idx}")
+                st.caption(f"📅 {datetime.fromisoformat(review_data['timestamp']).strftime('%b %d, %Y %I:%M %p')}")
+                st.caption(f"📄 Papers: {', '.join(review_data['papers'])}")
+                st.markdown('<div class="answer-card">', unsafe_allow_html=True)
+                st.markdown(review_data['review'])
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                st.download_button(
+                    label="💾 Download Review",
+                    data=review_data['review'],
+                    file_name=f"literature_review_{idx+1}.txt",
+                    mime="text/plain",
+                    key=f"download_review_{idx}"
+                )
+                st.markdown("---")
 
     uploads = st.file_uploader(
         "📚 Upload Research Papers (2+ PDFs recommended)",
@@ -748,6 +1013,13 @@ elif mode == "Literature Review Generator":
                         combined_text += f"\n\n=== {f.name} ===\n{text[:2000]}"
 
                     review = generate_literature_review(combined_text)
+
+                # Save to history
+                st.session_state["literature_reviews"].append({
+                    "papers": [f.name for f in uploads],
+                    "review": review,
+                    "timestamp": datetime.now().isoformat()
+                })
 
                 st.success("✅ Literature Review Generated Successfully!")
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -785,6 +1057,26 @@ elif mode == "Dataset / Metric Extractor":
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h3 class='section-header'>📊 Dataset & Metric Extractor</h3>", unsafe_allow_html=True)
     st.markdown("<p class='caption'>Automatically detect datasets and evaluation metrics using Gemini AI</p>", unsafe_allow_html=True)
+    
+    # Display previous extractions from loaded workspace
+    if st.session_state.get("dataset_extractions"):
+        with st.expander("📋 Previous Extractions", expanded=False):
+            for idx, extract_data in enumerate(reversed(st.session_state["dataset_extractions"])):
+                st.markdown(f"### Extraction #{len(st.session_state['dataset_extractions']) - idx}")
+                st.caption(f"📅 {datetime.fromisoformat(extract_data['timestamp']).strftime('%b %d, %Y %I:%M %p')}")
+                st.caption(f"📄 Papers: {', '.join(extract_data['papers'])}")
+                st.markdown('<div class="answer-card">', unsafe_allow_html=True)
+                st.markdown(extract_data['result'])
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                st.download_button(
+                    label="💾 Download Extraction",
+                    data=extract_data['result'],
+                    file_name=f"dataset_extraction_{idx+1}.txt",
+                    mime="text/plain",
+                    key=f"download_extract_{idx}"
+                )
+                st.markdown("---")
 
     # === File uploader ===
     uploads = st.file_uploader(
@@ -816,6 +1108,13 @@ elif mode == "Dataset / Metric Extractor":
                         result = extract_datasets_and_metrics_with_gemini(text)
 
                         combined_results += f"\n\n## 📄 {f.name}\n{result}"
+
+                # Save to history
+                st.session_state["dataset_extractions"].append({
+                    "papers": [f.name for f in uploads],
+                    "results": combined_results,
+                    "timestamp": datetime.now().isoformat()
+                })
 
                 st.success("✅ Analysis Complete!")
 

@@ -5,3 +5,4 @@ vectorstore
 .vscode
 lib
 temp_data
+workspaces
