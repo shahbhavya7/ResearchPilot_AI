@@ -297,7 +297,7 @@ This project demonstrates key concepts in:
   
   *Empowering academic research through AI*
   
-  [Website](https://researchpilot.ai) • [Documentation](https://docs.researchpilot.ai) • [API](https://api.researchpilot.ai)
+
   
 </div>
 
